@@ -2,6 +2,25 @@ name: Polashot build, push to GCR and update docker-compose
 
 on:
   workflow_call:
+    inputs:
+      REPO_NAME:
+        description: 'Repository name'
+        required: true
+        type: string
+      TAG:
+        description: 'Tag name'
+        required: true
+        type: string
+    secrets:
+      GCP_SA_KEY:
+        description: 'Service account key used to authenticate with Google Cloud'
+        required: true
+      DEPLOY_SERVER_IP:
+        description: 'Server IP address'
+        required: true
+      SSH_PRIVATE_KEY:
+        description: 'SSH private key used to authenticate with the server'
+        required: true
 
 jobs:
   build-and-push:
@@ -22,13 +41,13 @@ jobs:
     - name: Build and push Docker image
       run: |
         gcloud auth configure-docker
-        docker build -t eu.gcr.io/polashot/${{ github.event.repository.name }}:${{ github.ref_name }} .
-        docker push eu.gcr.io/polashot/${{ github.event.repository.name }}:${{ github.ref_name }}
+        docker build -t eu.gcr.io/polashot/${{ inputs.REPO_NAME }}:${{ inputs.TAG }} .
+        docker push eu.gcr.io/polashot/${{ inputs.REPO_NAME }}:${{ inputs.TAG }}
 
   update-docker-compose:
     needs: build-and-push
     env:
-      IMAGE_TAG: ${{ github.ref_name }}
+      IMAGE_TAG: ${{ inputs.TAG }}
 
     runs-on: ubuntu-latest
 
@@ -38,7 +57,7 @@ jobs:
 
       - name: Modify file
         run: |
-          envsubst < docker-compose.yaml > docker-compose-${{ github.event.repository.name }}.yaml
+          envsubst < docker-compose.yaml > docker-compose-${{ inputs.REPO_NAME }}.yaml
 
       - name: Configure SSH
         uses: webfactory/ssh-agent@v0.7.0
@@ -47,8 +66,8 @@ jobs:
 
       - name: Upload docker composer file to server
         run: |
-          scp -o StrictHostKeyChecking=no docker-compose-${{ github.event.repository.name }}.yaml github@${{ secrets.DEPLOY_SERVER_IP }}:/app/docker-compose-${{ github.event.repository.name }}.yaml
+          scp -o StrictHostKeyChecking=no docker-compose-${{ inputs.REPO_NAME }}.yaml github@${{ secrets.DEPLOY_SERVER_IP }}:/app/docker-compose-${{ inputs.REPO_NAME }}.yaml
 
       - name: Restart docker-compose service
         run: |
-          ssh -o StrictHostKeyChecking=no github@${{ secrets.DEPLOY_SERVER_IP }} "cd /app && sudo docker compose up --detach --no-deps ${{ github.event.repository.name }}"
+          ssh -o StrictHostKeyChecking=no github@${{ secrets.DEPLOY_SERVER_IP }} "cd /app && sudo docker compose up --detach --no-deps ${{ inputs.REPO_NAME }}"
