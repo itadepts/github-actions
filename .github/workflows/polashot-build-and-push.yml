@@ -1,11 +1,7 @@
 name: Polashot build, push to GCR and update docker-compose
 
 on:
-  push:
-    tags:
-      - "*"
-  release:
-    types: [released]
+  workflow_call:
 
 jobs:
   build-and-push:
